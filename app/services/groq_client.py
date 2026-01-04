@@ -17,7 +17,7 @@ async def get_ai_bridging_stream(topic: str, community: str):
 
     # Note: we add 'stream=True' here
     stream = await client.chat.completions.create(
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": "You are a community innovation mentor."},
             {"role": "user", "content": prompt}
