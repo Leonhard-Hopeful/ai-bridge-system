@@ -1,0 +1,26 @@
+/app
+├── main.py              # Application entry point
+├── /api
+│   ├── bridge_ws.py     # Endpoint 1: WebSocket for Theory-to-Practice [cite: 17, 33]
+│   └── ocr_rest.py      # Endpoint 2: REST for Note Digitization [cite: 22, 34]
+├── /services
+│   ├── groq_client.py   # Groq API integration for intelligent retrieval [cite: 31, 37]
+│   └── ocr_engine.py    # OCR logic using Tesseract/Cloud Vision [cite: 40]
+└── /models
+    └── schemas.py       # Our Structured JSON definitions
+
+
+
+
+
+
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/Leonhard-Hopeful/ai-bridge-system.git
+git push -u origin main
+
+git remote add origin https://github.com/Leonhard-Hopeful/ai-bridge-system.git
+git branch -M main
+git push -u origin main
