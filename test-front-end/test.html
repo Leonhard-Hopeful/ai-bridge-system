@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bridge Tester</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center;">
+    
+    <div style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); padding: 40px; max-width: 600px; width: 100%;">
+        
+        <h2 style="color: #2d3748; margin: 0 0 30px 0; font-size: 28px; font-weight: 700; text-align: center; letter-spacing: -0.5px;">
+            🤖 AI Bridge Tester
+        </h2>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; color: #4a5568; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Topic</label>
+            <input 
+                id="topic" 
+                placeholder="e.g., Solar Energy, Blockchain, AI" 
+                style="width: 100%; padding: 14px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 15px; transition: all 0.3s ease; box-sizing: border-box; outline: none;"
+                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102, 126, 234, 0.1)'"
+                onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'"
+            >
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; color: #4a5568; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Community</label>
+            <input 
+                id="comm" 
+                placeholder="Enter community name" 
+                style="width: 100%; padding: 14px 16px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 15px; transition: all 0.3s ease; box-sizing: border-box; outline: none;"
+                onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102, 126, 234, 0.1)'"
+                onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'"
+            >
+        </div>
+        
+        <button 
+            onclick="sendRequest()" 
+            style="width: 100%; padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);"
+            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.5)'"
+            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.4)'"
+            onmousedown="this.style.transform='translateY(0)'"
+        >
+            ✨ Ask AI
+        </button>
+        
+        <div 
+            id="output" 
+            style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 24px; min-height: 200px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; background: #f7fafc; color: #2d3748; font-size: 14px; line-height: 1.6; font-family: 'Courier New', monospace; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);"
+        >
+            <span style="color: #a0aec0; font-style: italic;">Waiting for response...</span>
+        </div>
+        
+    </div>
+
+    <script>
+        const ws = new WebSocket("ws://127.0.0.1:8000/ws/bridge");
+        const output = document.getElementById('output');
+        
+        ws.onopen = () => {
+            output.innerHTML = '<span style="color: #48bb78;">✓ Connected to AI Bridge</span>';
+        };
+        
+        ws.onerror = () => {
+            output.innerHTML = '<span style="color: #f56565;">✗ Connection error. Please check if the server is running.</span>';
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === "content") {
+                if (output.innerText === 'Waiting for response...' || output.innerText.includes('Connected to AI Bridge')) {
+                    output.innerText = "";
+                }
+                output.innerText += data.payload;
+            } else {
+                output.innerText += `\n[${data.payload}]\n`;
+            }
+        };
+        
+        function sendRequest() {
+            const topic = document.getElementById('topic').value.trim();
+            const comm = document.getElementById('comm').value.trim();
+            
+            if (!topic || !comm) {
+                output.innerHTML = '<span style="color: #f56565;">⚠ Please fill in both fields</span>';
+                return;
+            }
+            
+            output.innerHTML = '<span style="color: #667eea;">🔄 Processing your request...</span>';
+            
+            const msg = {
+                topic: topic,
+                community: comm
+            };
+            ws.send(JSON.stringify(msg));
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('comm').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendRequest();
+        });
+        document.getElementById('topic').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('comm').focus();
+        });
+    </script>
+</body>
+</html>
