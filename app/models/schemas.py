@@ -16,3 +16,10 @@ class StreamPacket(BaseModel):
     type: str  # e.g., "content", "status", or "error"
     payload: str
     metadata: Optional[dict] = None
+
+
+class OCRResponse(BaseModel):
+    filename: str
+    digitized_text: str
+    status: str
+    word_count: int  # Added this for extra info
