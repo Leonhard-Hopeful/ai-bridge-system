@@ -7,8 +7,17 @@ from fastapi import FastAPI, File, UploadFile
 from app.services.ocr_engine import process_handwriting
 from fastapi import HTTPException, status
 from app.models.schemas import OCRResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="AI-Powered Learning Bridge")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, change this to your specific domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.websocket("/ws/bridge")
 async def websocket_endpoint(websocket: WebSocket):
