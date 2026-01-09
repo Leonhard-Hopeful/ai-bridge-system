@@ -23,3 +23,7 @@ class OCRResponse(BaseModel):
     digitized_text: str
     status: str
     word_count: int  # Added this for extra info
+
+class DownloadRequest(BaseModel):
+    text: str
+    format: str

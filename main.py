@@ -1,60 +1,68 @@
-# main.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from app.models.schemas import StreamPacket
-from app.services.groq_client import get_ai_bridging_stream
 import json
-from fastapi import FastAPI, File, UploadFile
-from app.services.ocr_engine import process_handwriting
-from fastapi import HTTPException, status
-from app.models.schemas import OCRResponse
+import asyncio
+import os
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile, HTTPException, status, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+
+# Import your custom Pydantic models
+from app.models.schemas import OCRResponse, DownloadRequest
+
+# Import your updated services
+from app.services.ocr_engine import process_handwriting
+from app.services.ocr_refiner import refine_ocr_text
+from app.services.tutor_service import stream_tutor_response
+from app.utils.doc_gen import create_docx, create_pdf
 
 app = FastAPI(title="AI-Powered Learning Bridge")
 
+# --- MIDDLEWARE ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, change this to your specific domain
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- WEBSOCKET TUTOR ENDPOINT ---
 @app.websocket("/ws/bridge")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            # 1. Receive JSON from the user
-            data = await websocket.receive_text()
-            params = json.loads(data)
+            raw_data = await websocket.receive_text()
+            payload = json.loads(raw_data)
             
-            topic = params.get("topic")
-            community = params.get("community", "General")
+            user_message = payload.get("message")
+            session_id = payload.get("session_id")
+            topic = payload.get("topic")
+            community = payload.get("community")
 
-            # 2. Send status via Structured JSON
-            status_packet = StreamPacket(type="status", payload="Thinking...")
-            await websocket.send_json(status_packet.model_dump())
+            async for text_chunk in stream_tutor_response(
+                user_message, topic, community, session_id
+            ):
+                await websocket.send_text(json.dumps({
+                    "type": "content",
+                    "payload": text_chunk
+                }))
+                # Smooth pacing for readability
+                await asyncio.sleep(0.02)
 
-            # 3. Stream AI chunks
-            async for chunk in get_ai_bridging_stream(topic, community):
-                content_packet = StreamPacket(type="content", payload=chunk)
-                await websocket.send_json(content_packet.model_dump())
-            
-            # 4. Final status
-            done_packet = StreamPacket(type="status", payload="Done.")
-            await websocket.send_json(done_packet.model_dump())
+            await websocket.send_text(json.dumps({"type": "done"}))
 
     except WebSocketDisconnect:
-        print("User closed the connection")
+        print(f"Session {session_id} disconnected.")
     except Exception as e:
-        print(f"Error: {e}")
-        await websocket.close()
+        await websocket.send_text(json.dumps({"type": "error", "payload": str(e)}))
 
-
-@app.post("/digitize-notes", response_model=OCRResponse)
-async def digitize_notes(file: UploadFile = File(...)):
-    # 1. VALIDATION: Check file type
-    # We only want to allow images (jpg, png, jpeg)
+# --- UPDATED OCR & REFINEMENT ENDPOINT ---
+@app.post("/digitize-notes")
+async def digitize_notes(
+    file: UploadFile = File(...),
+    output_format: str = Form("json") # Added Form import here!
+):
+    # 1. VALIDATION: File type
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -62,9 +70,9 @@ async def digitize_notes(file: UploadFile = File(...)):
             detail="Invalid file type. Please upload a PNG or JPEG image."
         )
 
-    # 2. VALIDATION: Check file size (e.g., limit to 5MB)
-    MAX_SIZE = 5 * 1024 * 1024  # 5 Megabytes
-    file_bytes = await file.read() # Read the bytes once
+    # 2. VALIDATION: File size (5MB limit)
+    MAX_SIZE = 5 * 1024 * 1024 
+    file_bytes = await file.read()
     
     if len(file_bytes) > MAX_SIZE:
         raise HTTPException(
@@ -72,27 +80,51 @@ async def digitize_notes(file: UploadFile = File(...)):
             detail="File is too large. Please upload an image smaller than 5MB."
         )
 
-    # 3. Processing (Only if validation passes)
-    text = await process_handwriting(file_bytes)
-    
-    # 4. Return the validated Pydantic model
-    return OCRResponse(
-        filename=file.filename,
-        digitized_text=text,
-        status="success",
-        word_count=len(text.split())
-    )
+    # 3. PROCESSING
+    try:
+        # A. Raw OCR Extraction
+        raw_text = await process_handwriting(file_bytes)
+        
+        # B. LLM Refinement (Fixing spelling/OCR errors)
+        refined_text = await refine_ocr_text(raw_text)
+        
+        # 4. EXPORT HANDLING
+        if output_format == "pdf":
+            file_path = create_pdf(refined_text, filename=file.filename)
+            return FileResponse(
+                file_path, 
+                media_type="application/pdf", 
+                filename=f"Digitized_{file.filename}.pdf"
+            )
+        
+        elif output_format == "docx":
+            file_path = create_docx(refined_text, filename=file.filename)
+            return FileResponse(
+                file_path, 
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+                filename=f"Digitized_{file.filename}.docx"
+            )
 
-    # 1. Read the file
-    content = await file.read()
+        # Default: Return JSON Preview
+        return {
+            "filename": file.filename,
+            "raw_text": raw_text,
+            "digitized_text": refined_text,
+            "status": "success",
+            "word_count": len(refined_text.split())
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Refinement/OCR failed: {str(e)}"
+        )
     
-    # 2. Extract text using our new local service
-    text = await process_handwriting(content)
-    
-    # 3. Return structured JSON
-    return {
-        "filename": file.filename,
-        "digitized_text": text,
-        "status": "success",
-        "note": "You can now copy this text or save it as a PDF."
-    }
+@app.post("/download-notes")
+async def download_notes(req: DownloadRequest):
+    if req.format == "pdf":
+        path = create_pdf(req.text)
+        return FileResponse(path, media_type="application/pdf", filename="Notes.pdf")
+    else:
+        path = create_docx(req.text)
+        return FileResponse(path, media_type="application/vnd.openxmlformats-officedocument", filename="Notes.docx")
