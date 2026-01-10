@@ -126,10 +126,20 @@
     
 #     asyncio.run(main())
 import os
+from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
+
+# #-------------------------------------------------------------------
+# # Environment setup
+# # -------------------------------------------------------------------
+load_dotenv()
+if not os.getenv("GROQ_API_KEY"):
+    raise EnvironmentError(
+        "GROQ_API_KEY is not set. Please define it in your environment or .env file."
+     )
 
 # Initialize LLM
 llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.2)
@@ -137,7 +147,7 @@ llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.2)
 # Define the Enhanced Teaching Prompt
 prompt = ChatPromptTemplate.from_messages([
     ("system", """You are the "AI Bridge Tutor," a brilliant and encouraging educator in Cameroon. 
-    Your goal is to teach {topic} to a learner in {community}.
+    Your goal is to teach {topic} to a learner in {community}. with the aim of helping a learner to apply what he is learning to solve problems arround him
 
     ### CORE DIRECTIVES:
     1. **Brevity & Intuition**: Keep each response short and brief. Explain the "why" before the "how" using simple intuition.
@@ -147,7 +157,7 @@ prompt = ChatPromptTemplate.from_messages([
        - Block: Use $$...$$ (e.g., $$\\int_{{a}}^{{b}} f(x) dx$$).
        - IMPORTANT: For fractions, use double braces: $$\\frac{{numerator}}{{denominator}}$$.
     4. **Micro-Lessons**: Cover only ONE small sub-concept per turn. 
-    5. **Socratic End**: Always end with ONE short, clear question.
+    5. **Socratic End**: Always end with ONE short, clear question in bold font.
 
     ### EXAMPLE FORMATTING:
     "If you have a fraction like $$\\frac{{1}}{{2}}$$, think of it as sharing one loaf of bread between two people in the quarter."
