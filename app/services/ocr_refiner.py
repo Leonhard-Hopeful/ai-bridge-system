@@ -19,7 +19,7 @@ Your task is to take messy OCR text from handwritten notes and:
 2. Fix common OCR mistakes (e.g., '1' instead of 'I', '5' instead of 'S').
 3. Maintain the original structure and intent of the student's notes.
 4. Do NOT add new information. Only refine what is there."""),
-        ("human", "Refine this raw OCR text:\n\n{text}")
+        ("human", "Refine this raw OCR text:\n--\n{text}")
     ])
 
     chain = refine_prompt | llm
