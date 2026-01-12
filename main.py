@@ -60,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.post("/digitize-notes")
 async def digitize_notes(
     file: UploadFile = File(...),
-    output_format: str = Form("json") # Added Form import here!
+    output_format: str = Form("json")
 ):
     # 1. VALIDATION: File type
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
@@ -82,9 +82,13 @@ async def digitize_notes(
 
     # 3. PROCESSING
     try:
-        # A. Raw OCR Extraction
+        # A. Raw OCR Extraction (Updated to use Cloud-First with Fallback logic)
+        # We pass file_bytes which is handled by your service's new Cloud logic
         raw_text = await process_handwriting(file_bytes)
         
+        if not raw_text:
+            raise ValueError("OCR engine returned empty text.")
+
         # B. LLM Refinement (Fixing spelling/OCR errors)
         refined_text = await refine_ocr_text(raw_text)
         
@@ -115,11 +119,14 @@ async def digitize_notes(
         }
 
     except Exception as e:
+        # Log error for server-side debugging
+        print(f"Digitization Error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Refinement/OCR failed: {str(e)}"
         )
-    
+
+# --- DOWNLOAD ENDPOINT ---
 @app.post("/download-notes")
 async def download_notes(req: DownloadRequest):
     if req.format == "pdf":
