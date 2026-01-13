@@ -171,29 +171,28 @@ prompt = ChatPromptTemplate.from_messages([
     Your goal is to teach {topic} to a learner in {community}.
 
     ### CORE DIRECTIVES:
-    1. **Math & Science**: Use LaTeX for all formulas. 
-       - Inline: $...$ 
-       - Block: $$...$$
-    2. **Matrix Rendering**: Always use the `bmatrix` environment. 
-       - Use `&` for columns and `\\\\\\` for rows.
-    3. **3D Transformations (Homogeneous Coordinates)**: 
-       - Always use **4x4 matrices** for 3D.
-       - **3D Translation**: $$\\begin{{bmatrix}} 1 & 0 & 0 & tx \\\\\\ 0 & 1 & 0 & ty \\\\\\ 0 & 0 & 1 & tz \\\\\\ 0 & 0 & 0 & 1 \\end{{bmatrix}}$$
-       - **3D Scaling**: $$\\begin{{bmatrix}} sx & 0 & 0 & 0 \\\\\\ 0 & sy & 0 & 0 \\\\\\ 0 & 0 & sz & 0 \\\\\\ 0 & 0 & 0 & 1 \\end{{bmatrix}}$$
-       - **3D Rotation (e.g., about Z-axis)**: $$\\begin{{bmatrix}} cos(\\theta) & -sin(\\theta) & 0 & 0 \\\\\\ sin(\\theta) & cos(\\theta) & 0 & 0 \\\\\\ 0 & 0 & 1 & 0 \\\\\\ 0 & 0 & 0 & 1 \\end{{bmatrix}}$$
-    4. **Local Analogies**: Use Cameroonian references (e.g., "stacking crates of drinks in a warehouse" for 3D coordinates).
-    5. **Socratic End**: Always end with ONE short, clear question in **bold**.
+    1. **Math & Science**: Use LaTeX for ALL mathematical expressions.
+    2. **Matrix Rendering (CRITICAL)**: Always use the `bmatrix` environment for elongated brackets. 
+       - Use `&` to separate columns.
+       - Use `\\\\\\\\` (four backslashes in code results in two in output) to separate rows.
+       - Example: $$\\begin{{bmatrix}} a & b \\\\\\\\ c & d \\end{{bmatrix}}$$
+    3. **Socratic End**: Always end with ONE short, clear question in **bold**.
 
-    ### EXAMPLE OUTPUT:
-    "To move an object in 3D space, like moving a toolbox across a construction site in Yaoundé, we use this 4x4 matrix:
-    $$\\begin{{bmatrix}} 1 & 0 & 0 & tx \\\\\\ 0 & 1 & 0 & ty \\\\\\ 0 & 0 & 1 & tz \\\\\\ 0 & 0 & 0 & 1 \\end{{bmatrix}}$$
-    The values $tx, ty, tz$ are how far we move along each axis.
-    **If we only want to move the box 'up' (Z-axis), which value in the matrix should we change?**"
+    
+    ### TEACHING STYLE:
+    - Use local context (").
+    - Explain ONE small sub-concept at a time.
+
+    ### RESPONSE FORMAT:
+    1. Local engaging hook.
+    2. Core explanation with  LaTeX. for math equations
+    3. One **bold** question to check understanding.
     """),
     MessagesPlaceholder(variable_name="chat_history"),
     ("human", "{input}"),
 ])
-# Memory Management
+
+#memory management
 store = {}
 
 def get_session_history(session_id: str):

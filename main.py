@@ -17,6 +17,7 @@ from app.utils.doc_gen import create_docx, create_pdf
 app = FastAPI(title="AI-Powered Learning Bridge")
 
 # --- MIDDLEWARE ---
+# Necessary for the Vue frontend to communicate with this FastAPI backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -29,16 +30,23 @@ app.add_middleware(
 @app.websocket("/ws/bridge")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    
+    # Initialize session variables immediately to prevent UnboundLocalError
+    # during unexpected disconnections
+    session_id = "initialization"
+    
     try:
         while True:
+            # Receive message from Vue frontend
             raw_data = await websocket.receive_text()
             payload = json.loads(raw_data)
             
             user_message = payload.get("message")
-            session_id = payload.get("session_id")
-            topic = payload.get("topic")
-            community = payload.get("community")
+            session_id = payload.get("session_id", "anonymous")
+            topic = payload.get("topic", "General")
+            community = payload.get("community", "Cameroon")
 
+            # Stream response from Groq LLM
             async for text_chunk in stream_tutor_response(
                 user_message, topic, community, session_id
             ):
@@ -46,15 +54,27 @@ async def websocket_endpoint(websocket: WebSocket):
                     "type": "content",
                     "payload": text_chunk
                 }))
-                # Smooth pacing for readability
+                # Smooth pacing prevents the UI from flickering 
+                # during high-speed text generation
                 await asyncio.sleep(0.02)
 
+            # Signal that the AI has finished its current turn
             await websocket.send_text(json.dumps({"type": "done"}))
 
     except WebSocketDisconnect:
-        print(f"Session {session_id} disconnected.")
+        # Handles Code 1001 (browser refresh) or 1000 (tab close)
+        print(f"INFO: Bridge Session {session_id} disconnected.")
     except Exception as e:
-        await websocket.send_text(json.dumps({"type": "error", "payload": str(e)}))
+        # Log unexpected server-side errors
+        print(f"ERROR: WebSocket crash in session {session_id}: {str(e)}")
+        try:
+            # Attempt to notify frontend if the connection is still alive
+            await websocket.send_text(json.dumps({
+                "type": "error", 
+                "payload": "The learning bridge encountered a temporary glitch."
+            }))
+        except:
+            pass
 
 # --- UPDATED OCR & REFINEMENT ENDPOINT ---
 @app.post("/digitize-notes")
@@ -62,7 +82,7 @@ async def digitize_notes(
     file: UploadFile = File(...),
     output_format: str = Form("json")
 ):
-    # 1. VALIDATION: File type
+    # 1. VALIDATION: Check file extension
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -70,29 +90,27 @@ async def digitize_notes(
             detail="Invalid file type. Please upload a PNG or JPEG image."
         )
 
-    # 2. VALIDATION: File size (5MB limit)
+    # 2. VALIDATION: Enforce a 5MB limit for efficiency in low-bandwidth areas
     MAX_SIZE = 5 * 1024 * 1024 
     file_bytes = await file.read()
     
     if len(file_bytes) > MAX_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File is too large. Please upload an image smaller than 5MB."
+            detail="File is too large. Keep images under 5MB for faster processing."
         )
 
-    # 3. PROCESSING
     try:
-        # A. Raw OCR Extraction (Updated to use Cloud-First with Fallback logic)
-        # We pass file_bytes which is handled by your service's new Cloud logic
+        # A. Raw OCR Extraction using the engine service
         raw_text = await process_handwriting(file_bytes)
         
         if not raw_text:
-            raise ValueError("OCR engine returned empty text.")
+            raise ValueError("OCR engine could not detect any text in the image.")
 
-        # B. LLM Refinement (Fixing spelling/OCR errors)
+        # B. AI Refinement (handles Cameroon-specific terms and context)
         refined_text = await refine_ocr_text(raw_text)
         
-        # 4. EXPORT HANDLING
+        # 3. EXPORT HANDLING: Convert text to requested document format
         if output_format == "pdf":
             file_path = create_pdf(refined_text, filename=file.filename)
             return FileResponse(
@@ -109,7 +127,7 @@ async def digitize_notes(
                 filename=f"Digitized_{file.filename}.docx"
             )
 
-        # Default: Return JSON Preview
+        # Default JSON response for instant preview in the app
         return {
             "filename": file.filename,
             "raw_text": raw_text,
@@ -119,19 +137,26 @@ async def digitize_notes(
         }
 
     except Exception as e:
-        # Log error for server-side debugging
         print(f"Digitization Error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Refinement/OCR failed: {str(e)}"
+            detail=f"OCR Refinement failed: {str(e)}"
         )
 
 # --- DOWNLOAD ENDPOINT ---
 @app.post("/download-notes")
 async def download_notes(req: DownloadRequest):
-    if req.format == "pdf":
-        path = create_pdf(req.text)
-        return FileResponse(path, media_type="application/pdf", filename="Notes.pdf")
-    else:
-        path = create_docx(req.text)
-        return FileResponse(path, media_type="application/vnd.openxmlformats-officedocument", filename="Notes.docx")
+    """Allows users to download their previous chat history or notes as docs."""
+    try:
+        if req.format == "pdf":
+            path = create_pdf(req.text)
+            return FileResponse(path, media_type="application/pdf", filename="Bridge_Notes.pdf")
+        else:
+            path = create_docx(req.text)
+            return FileResponse(
+                path, 
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+                filename="Bridge_Notes.docx"
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
