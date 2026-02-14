@@ -160,3 +160,26 @@ async def download_notes(req: DownloadRequest):
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- EXPERT AGENT ENDPOINT ---
+@app.websocket("/ws/expert")
+async def expert_websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            raw_data = await websocket.receive_text()
+            payload = json.loads(raw_data)
+            
+            user_message = payload.get("message")
+            subject = payload.get("subject")
+
+            # Call our new strict service
+            async for text_chunk in stream_expert_response(user_message, subject):
+                await websocket.send_text(json.dumps({
+                    "type": "content",
+                    "payload": text_chunk
+                }))
+            
+            await websocket.send_text(json.dumps({"type": "done"}))
+    except WebSocketDisconnect:
+        print("Expert session disconnected.")
