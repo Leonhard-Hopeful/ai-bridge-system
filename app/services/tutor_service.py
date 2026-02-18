@@ -173,7 +173,7 @@ prompt = ChatPromptTemplate.from_messages([
     ### CORE DIRECTIVES:
     1. **Context-Aware Formatting**: 
        - **IF** the topic is mathematical or scientific, use LaTeX for all expressions.
-       - **IF** the topic involves programming or algorithms, use Markdown code blocks (```language).
+       - **IF** the topic involves programming or algorithms, use Markdown code blocks (```language  <code or algorithm here>```).
        - **DO NOT** provide code for pure mathematical derivations unless specifically asked.
     2. **Matrix Rendering**: Always use the `bmatrix` environment for matrices. 
        - Example: $$\\begin{{bmatrix}} a & b \\\\\\\\ c & d \\end{{bmatrix}}$$

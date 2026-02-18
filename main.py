@@ -12,6 +12,7 @@ from app.models.schemas import OCRResponse, DownloadRequest
 from app.services.ocr_engine import process_handwriting
 from app.services.ocr_refiner import refine_ocr_text
 from app.services.tutor_service import stream_tutor_response
+from app.services.expert_service import stream_expert_response
 from app.utils.doc_gen import create_docx, create_pdf
 
 app = FastAPI(title="AI-Powered Learning Bridge")
@@ -173,13 +174,26 @@ async def expert_websocket_endpoint(websocket: WebSocket):
             user_message = payload.get("message")
             subject = payload.get("subject")
 
-            # Call our new strict service
+            # Validate input
+            if not user_message:
+                continue
+
+            # Stream chunks from your RAG service
             async for text_chunk in stream_expert_response(user_message, subject):
+                # We send as "content" type for the frontend to append
                 await websocket.send_text(json.dumps({
                     "type": "content",
                     "payload": text_chunk
                 }))
             
+            # Critical: Signal the frontend that the stream is finished
             await websocket.send_text(json.dumps({"type": "done"}))
+            
     except WebSocketDisconnect:
-        print("Expert session disconnected.")
+        print(f"Expert session disconnected for subject: {subject}")
+    except Exception as e:
+        print(f"Server Error: {e}")
+        await websocket.send_text(json.dumps({
+            "type": "content", 
+            "payload": "\n\n**Error:** The bridge connection was interrupted."
+        }))
